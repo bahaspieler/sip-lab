@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<!--
+  UAS scenario: callee (this side) hangs up.
+
+  Flow:
+    UAS recvs INVITE  ←
+    UAS sends 180     →
+    UAS sends 200 OK  →  (with SDP answer)
+    UAS recvs ACK     ←
+    (pause for call duration, then callee hangs up)
+    UAS sends BYE     →
+    UAS recvs 200 OK  ←
+
+  Use -d <ms> to control the pause duration before BYE.
+-->
+<scenario name="UAS - callee hangs up">
+
+  <!-- Receive INVITE; extract Contact URI and From header for BYE.
+       [remote_ip] is empty in UAS mode, so we parse the INVITE headers. -->
+  <recv request="INVITE" crlf="true">
+    <action>
+      <!-- Extract Contact URI, e.g. "sip:uac@172.18.0.2:5060;transport=UDP" -->
+      <ereg regexp="&lt;(sip:[^&gt;]+)&gt;" search_in="hdr" header="Contact:" assign_to="junk,uac_contact_uri"/>
+      <!-- Extract full From header value for use as To in BYE (dialog reversal) -->
+      <ereg regexp="(.*)" search_in="hdr" header="From:" assign_to="junk,invite_from_value"/>
+    </action>
+  </recv>
+
+  <!-- 180 Ringing -->
+  <send>
+    <![CDATA[
+      SIP/2.0 180 Ringing
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag01[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:uas@[local_ip]:[local_port];transport=[transport]>
+      Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- 200 OK with SDP answer -->
+  <send retrans="500">
+    <![CDATA[
+      SIP/2.0 200 OK
+      [last_Via:]
+      [last_From:]
+      [last_To:];tag=[pid]SIPpTag01[call_number]
+      [last_Call-ID:]
+      [last_CSeq:]
+      Contact: <sip:uas@[local_ip]:[local_port];transport=[transport]>
+      Content-Type: application/sdp
+      Content-Length: [len]
+
+      v=0
+      o=uas 53655765 2353687637 IN IP[local_ip_type] [local_ip]
+      s=-
+      c=IN IP[media_ip_type] [media_ip]
+      t=0 0
+      m=audio [auto_media_port] RTP/AVP 0
+      a=rtpmap:0 PCMU/8000
+    ]]>
+  </send>
+
+  <!-- Receive ACK -->
+  <recv request="ACK" crlf="true"/>
+
+  <!-- Call duration pause (callee side). Duration set by -d flag. -->
+  <pause/>
+
+  <!-- Callee hangs up: send BYE to the UAC's Contact URI (extracted from INVITE).
+       In a dialog, BYE From = local party (UAS), To = remote party (UAC).
+       The To value is the INVITE's From (with the UAC's tag). -->
+  <send retrans="500">
+    <![CDATA[
+      BYE [$uac_contact_uri] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: <sip:uas@[local_ip]:[local_port]>;tag=[pid]SIPpTag01[call_number]
+      To: [$invite_from_value]
+      [last_Call-ID:]
+      CSeq: 2 BYE
+      Max-Forwards: 70
+      Content-Length: 0
+    ]]>
+  </send>
+
+  <!-- Receive 200 OK to BYE -->
+  <recv response="200" crlf="true"/>
+
+</scenario>

@@ -1,0 +1,9 @@
+{
+    "uac_target": "sipp_uas:5060",
+    "uac_rsa": null,
+    "uac_scenario": null,
+    "uas_scenario": null,
+    "wait_for": [],
+    "delay_ms": 4000,
+    "calls": 1
+}

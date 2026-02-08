@@ -1,0 +1,61 @@
+# Scenario 03 — Single Stateful Proxy
+#
+# Topology:  UAC (.2) --> Kamailio Proxy (.10) --> UAS (.3)
+#            capture (shares UAS network namespace)
+#
+# Same topology as scenario 02, but Kamailio uses t_relay() (stateful).
+# Key difference: the proxy generates 100 Trying for INVITE transactions.
+
+services:
+  sipp_uac:
+    image: ctaloi/sipp:latest
+    platform: linux/amd64
+    container_name: sipp_uac
+    entrypoint: ["/bin/sh", "-lc"]
+    command: ["while true; do sleep 3600; done"]
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.2
+    volumes:
+      - ../../sipp:/sipp:ro
+
+  sipp_uas:
+    image: ctaloi/sipp:latest
+    platform: linux/amd64
+    container_name: sipp_uas
+    entrypoint: ["/bin/sh", "-lc"]
+    command: ["while true; do sleep 3600; done"]
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.3
+    volumes:
+      - ../../sipp:/sipp:ro
+
+  proxy:
+    image: kamailio/kamailio-ci:latest
+    platform: linux/amd64
+    container_name: proxy
+    volumes:
+      - ./kamailio.cfg:/etc/kamailio/kamailio.cfg:ro
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.10
+
+  capture:
+    image: nicolaka/netshoot:latest
+    container_name: capture
+    command: ["sleep", "infinity"]
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    # Capture on the proxy's namespace to see BOTH legs:
+    #   UAC ↔ Proxy  and  Proxy ↔ UAS
+    # For the stateful proxy, this also captures the 100 Trying → UAC.
+    network_mode: "service:proxy"
+    volumes:
+      - ../../captures:/captures
+
+networks:
+  sipnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

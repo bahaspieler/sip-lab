@@ -1,0 +1,18 @@
+# Packet captures (binary, regenerable)
+captures/*.pcap
+
+# Internal planning docs
+PLAN.md
+project-plan.md
+
+# Reference material
+*.pdf
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS artifacts
+.DS_Store
+Thumbs.db

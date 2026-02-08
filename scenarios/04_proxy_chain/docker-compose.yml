@@ -1,0 +1,72 @@
+# Scenario 04 — Proxy Chain (Two Proxies)
+#
+# Topology:  UAC (.2) --> Proxy1 (.10) --> Proxy2 (.11) --> UAS (.3)
+#            capture (shares UAS network namespace)
+#
+# INVITE arriving at UAS will have 3 Via headers: UAC, Proxy1, Proxy2.
+# Responses traverse the Via stack in reverse.
+# Without Record-Route, BYE goes through the proxies only because of
+# SIPp's -rsa flag (see scenario 05 for proper Record-Route behavior).
+
+services:
+  sipp_uac:
+    image: ctaloi/sipp:latest
+    platform: linux/amd64
+    container_name: sipp_uac
+    entrypoint: ["/bin/sh", "-lc"]
+    command: ["while true; do sleep 3600; done"]
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.2
+    volumes:
+      - ../../sipp:/sipp:ro
+
+  sipp_uas:
+    image: ctaloi/sipp:latest
+    platform: linux/amd64
+    container_name: sipp_uas
+    entrypoint: ["/bin/sh", "-lc"]
+    command: ["while true; do sleep 3600; done"]
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.3
+    volumes:
+      - ../../sipp:/sipp:ro
+
+  proxy1:
+    image: kamailio/kamailio-ci:latest
+    platform: linux/amd64
+    container_name: proxy1
+    volumes:
+      - ./proxy1.cfg:/etc/kamailio/kamailio.cfg:ro
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.10
+
+  proxy2:
+    image: kamailio/kamailio-ci:latest
+    platform: linux/amd64
+    container_name: proxy2
+    volumes:
+      - ./proxy2.cfg:/etc/kamailio/kamailio.cfg:ro
+    networks:
+      sipnet:
+        ipv4_address: 172.20.0.11
+
+  capture:
+    image: nicolaka/netshoot:latest
+    container_name: capture
+    command: ["sleep", "infinity"]
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    # Capture on proxy2's namespace to see Proxy1 ↔ Proxy2 and Proxy2 ↔ UAS.
+    # INVITE at this point has 2→3 Via headers (P1+UAC then P2+P1+UAC).
+    network_mode: "service:proxy2"
+    volumes:
+      - ../../captures:/captures
+
+networks:
+  sipnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
