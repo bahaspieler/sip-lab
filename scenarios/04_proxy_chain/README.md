@@ -18,7 +18,7 @@ Proxy2↔UAS legs.
 | **Proxy chain** | Multiple proxies in sequence. Each adds its Via header. |
 | **3 Via headers** | INVITE at UAS has Via: Proxy2, Via: Proxy1, Via: UAC (newest on top). |
 | **$du (destination URI)** | Proxy1 uses `$du` to override the next-hop to Proxy2 without changing the Request-URI. |
-| **No Record-Route** | Without Record-Route, in-dialog requests (ACK, BYE) should go directly UAC→UAS in real SIP. See scenario 05 for Record-Route. |
+| **No Record-Route** | Without Record-Route, in-dialog requests (ACK, BYE) should go directly UAC→UAS in real SIP. Use `--record-route` to enable. |
 
 ## How to Run
 
@@ -72,9 +72,49 @@ t_relay();
 t_relay();   # No $du override: forwards to R-URI
 ```
 
+## Record-Route Mode
+
+Add `--record-route` to make both proxies insert themselves into the dialog path.
+In-dialog requests (ACK, BYE) will then traverse the full proxy chain via Route headers.
+
+```bash
+python3 labctl.py run 04_proxy_chain --record-route
+```
+
+### What Changes
+
+| Without `--record-route` | With `--record-route` |
+|--------------------------|----------------------|
+| Proxies use `proxy1.cfg` / `proxy2.cfg` | Proxies use `proxy1_rr.cfg` / `proxy2_rr.cfg` |
+| No Record-Route headers | Two Record-Route headers (one per proxy) |
+| ACK/BYE go directly UAC ↔ UAS | ACK/BYE go UAC → Proxy1 → Proxy2 → UAS via Route headers |
+
+### What to Look for in the PCAP
+
+```bash
+# Record-Route headers on the INVITE arriving at UAS (should be 2 — one per proxy)
+tshark -r captures/04_proxy_chain.pcap -Y "sip.Method==INVITE && ip.dst==172.20.0.3" -T fields -e sip.Record-Route
+
+# Route headers on ACK and BYE (built from Record-Route set)
+tshark -r captures/04_proxy_chain.pcap -Y "sip.Method==ACK || sip.Method==BYE" -T fields -e ip.src -e ip.dst -e sip.Route
+```
+
+### Comparing PCAPs
+
+```bash
+python3 labctl.py run 04_proxy_chain --pcap chain_no_rr.pcap
+python3 labctl.py run 04_proxy_chain --pcap chain_rr.pcap --record-route
+
+# Diff: Route headers present only in chain_rr.pcap
+tshark -r captures/chain_no_rr.pcap -Y "sip.Route" | wc -l   # should be 0
+tshark -r captures/chain_rr.pcap -Y "sip.Route" | wc -l       # should be > 0
+```
+
 ## Exercises
 
 1. How many Via headers does the INVITE have at Proxy2? At UAS?
 2. Trace a 200 OK response back from UAS to UAC: at each hop, which Via is stripped?
-3. Do ACK and BYE also have 3 Via headers? Why? (Hint: look at scenario 05 for the difference.)
-4. What would happen if you added a third proxy?
+3. Without `--record-route`, do ACK and BYE traverse the proxy chain? Why or why not?
+4. Run with `--record-route`: how many Route headers appear in the ACK? In what order?
+5. Compare the Record-Route order in the INVITE with the Route order in the ACK — why are they reversed?
+6. What would happen if you added a third proxy?

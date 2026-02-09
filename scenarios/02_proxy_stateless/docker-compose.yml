@@ -33,7 +33,7 @@ services:
     platform: linux/amd64
     container_name: proxy
     volumes:
-      - ./kamailio.cfg:/etc/kamailio/kamailio.cfg:ro
+      - ./${KAM_CFG:-kamailio.cfg}:/etc/kamailio/kamailio.cfg:ro
     networks:
       sipnet:
         ipv4_address: 172.20.0.10

@@ -2,8 +2,11 @@
     "uac_target": "sipp_uas:5060",
     "uac_rsa": "proxy1:5060",
     "uac_scenario": "/sipp/uac_proxy.xml",
-    "uas_scenario": null,
+    "uas_scenario": "/sipp/uas_proxy.xml",
     "wait_for": ["proxy1", "proxy2"],
     "delay_ms": 2000,
-    "calls": 1
+    "calls": 1,
+    "record_route": {
+        "env": { "P1_CFG": "proxy1_rr.cfg", "P2_CFG": "proxy2_rr.cfg" }
+    }
 }

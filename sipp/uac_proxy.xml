@@ -1,20 +1,26 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 <!--
-  UAC scenario for proxy scenarios (02-04).
+  Unified UAC scenario for all proxy scenarios (02-04).
 
-  Unlike the built-in -sn uac, this scenario tolerates late provisional
-  responses (180 Ringing arriving after 200 OK) which can happen with
-  stateless proxies that forward messages independently.
+  Works with and without Record-Route:
+  - rrs="true" on the 200 OK recv stores Record-Route headers if present
+    (stores nothing if proxies don't add Record-Route — backward compatible)
+  - [routes] in ACK/BYE expands to Route headers when Record-Route was stored,
+    or expands to nothing when it wasn't
+  - [next_url] uses the Contact from 200 OK as the Request-URI for ACK/BYE
+
+  Also tolerates late provisional responses (180 arriving after 200 OK)
+  which can happen with stateless proxies that forward independently.
 
   Flow:
-    UAC sends INVITE   →
-    UAC recvs 1xx      ← (optional, any number of provisionals)
-    UAC recvs 200 OK   ←
-    UAC sends ACK      →
+    UAC sends INVITE   ->
+    UAC recvs 1xx      <- (optional, any number of provisionals)
+    UAC recvs 200 OK   <- (with Record-Route if proxies add it)
+    UAC sends ACK      -> (with Route headers if Record-Route was present)
     (pause for call duration)
-    UAC sends BYE      →
-    UAC recvs 200 OK   ←
+    UAC sends BYE      -> (with Route headers if Record-Route was present)
+    UAC recvs 200 OK   <-
 -->
 <scenario name="UAC for proxy scenarios">
 
@@ -47,18 +53,19 @@
   <recv response="180" optional="true"/>
   <recv response="183" optional="true"/>
 
-  <!-- Wait for 200 OK (final response) -->
-  <recv response="200" rtd="true" crlf="true"/>
+  <!-- 200 OK: rrs="true" stores Record-Route headers (if any) for [routes] -->
+  <recv response="200" rrs="true" rtd="true" crlf="true"/>
 
-  <!-- ACK the 200 OK -->
+  <!-- ACK with Route headers derived from Record-Route (empty if no RR) -->
   <send>
     <![CDATA[
-      ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      ACK [next_url] SIP/2.0
       Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
       From: "UAC" <sip:uac@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
       To: "UAS" <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
       Call-ID: [call_id]
       CSeq: 1 ACK
+      [routes]
       Max-Forwards: 70
       Content-Length: 0
     ]]>
@@ -70,15 +77,16 @@
        a known SIPp limitation; the pcap capture is still correct. -->
   <pause/>
 
-  <!-- Send BYE -->
+  <!-- BYE with Route headers (same route set as ACK; empty if no RR) -->
   <send retrans="500">
     <![CDATA[
-      BYE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      BYE [next_url] SIP/2.0
       Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
       From: "UAC" <sip:uac@[local_ip]:[local_port]>;tag=[pid]SIPpTag00[call_number]
       To: "UAS" <sip:[service]@[remote_ip]:[remote_port]>[peer_tag_param]
       Call-ID: [call_id]
       CSeq: 2 BYE
+      [routes]
       Max-Forwards: 70
       Content-Length: 0
     ]]>

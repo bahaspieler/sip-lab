@@ -255,8 +255,15 @@ def run_basic_workflow(compose_file: str, project: Optional[str], pcap_name: str
 
 def run_scenario_workflow(scenario_dir: str, project: Optional[str], pcap_name: str,
                           keep: bool, calls: Optional[int], delay_ms: Optional[int],
-                          verbose: bool) -> int:
-    """Generic scenario runner.  Reads scenario.json from *scenario_dir*."""
+                          verbose: bool, record_route: bool = False) -> int:
+    """Generic scenario runner.  Reads scenario.json from *scenario_dir*.
+
+    When *record_route* is True, environment variables from the
+    ``record_route.env`` section of scenario.json are injected before
+    ``compose up``.  Docker Compose picks them up via ``${VAR:-default}``
+    syntax in volume mounts, swapping the Kamailio config for one that
+    includes ``record_route()`` / ``loose_route()`` logic.
+    """
     scenario_path = Path(scenario_dir)
     compose_file = str(scenario_path / "docker-compose.yml")
     config_path = scenario_path / "scenario.json"
@@ -275,6 +282,19 @@ def run_scenario_workflow(scenario_dir: str, project: Optional[str], pcap_name: 
     wait_for = cfg.get("wait_for", [])
     s_delay = delay_ms if delay_ms is not None else cfg.get("delay_ms", 2000)
     s_calls = calls if calls is not None else cfg.get("calls", 1)
+
+    # --record-route: inject env vars so Docker Compose mounts the RR config
+    rr_env_keys: List[str] = []
+    if record_route:
+        rr_section = cfg.get("record_route", {})
+        rr_env = rr_section.get("env", {})
+        if not rr_env:
+            eprint("[labctl] WARNING: --record-route set but no record_route.env in scenario.json")
+        else:
+            for k, v in rr_env.items():
+                os.environ[k] = v
+                rr_env_keys.append(k)
+            eprint(f"[labctl] Record-Route enabled: {rr_env}")
 
     captures_dir = Path("captures")
     _ensure_dir(captures_dir)
@@ -326,6 +346,11 @@ def run_scenario_workflow(scenario_dir: str, project: Optional[str], pcap_name: 
         time.sleep(0.5)
         if not keep:
             compose_down(compose_file, project)
+
+        # Clean up injected env vars so they don't leak into subsequent runs
+        for k in rr_env_keys:
+            os.environ.pop(k, None)
+
         try:
             if pcap_host.exists():
                 sz = pcap_host.stat().st_size
@@ -380,6 +405,8 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     run_s.add_argument("--calls", type=int, default=None, help="Override number of calls")
     run_s.add_argument("--delay-ms", type=int, default=None, help="Override call duration (ms)")
     run_s.add_argument("--verbose", action="store_true", help="Verbose SIPp output")
+    run_s.add_argument("--record-route", action="store_true",
+                       help="Enable Record-Route: proxies insert themselves into the dialog path")
 
     basic = sub.add_parser("run_basic", help="Run basic SIPp UAC->UAS call and capture a pcap")
     basic.add_argument("--pcap", default="basic.pcap", help="PCAP filename under ./captures/")
@@ -439,6 +466,7 @@ def main(argv: List[str]) -> int:
             calls=args.calls,
             delay_ms=args.delay_ms,
             verbose=args.verbose,
+            record_route=args.record_route,
         )
     if args.cmd == "run_basic":
         return run_basic_workflow(

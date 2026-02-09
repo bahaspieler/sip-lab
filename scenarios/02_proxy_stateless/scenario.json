@@ -2,8 +2,11 @@
     "uac_target": "sipp_uas:5060",
     "uac_rsa": "proxy:5060",
     "uac_scenario": "/sipp/uac_proxy.xml",
-    "uas_scenario": null,
+    "uas_scenario": "/sipp/uas_proxy.xml",
     "wait_for": ["proxy"],
     "delay_ms": 2000,
-    "calls": 1
+    "calls": 1,
+    "record_route": {
+        "env": { "KAM_CFG": "kamailio_rr.cfg" }
+    }
 }

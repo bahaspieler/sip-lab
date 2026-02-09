@@ -38,7 +38,7 @@ services:
     platform: linux/amd64
     container_name: proxy1
     volumes:
-      - ./proxy1.cfg:/etc/kamailio/kamailio.cfg:ro
+      - ./${P1_CFG:-proxy1.cfg}:/etc/kamailio/kamailio.cfg:ro
     networks:
       sipnet:
         ipv4_address: 172.20.0.10
@@ -48,7 +48,7 @@ services:
     platform: linux/amd64
     container_name: proxy2
     volumes:
-      - ./proxy2.cfg:/etc/kamailio/kamailio.cfg:ro
+      - ./${P2_CFG:-proxy2.cfg}:/etc/kamailio/kamailio.cfg:ro
     networks:
       sipnet:
         ipv4_address: 172.20.0.11

@@ -86,9 +86,50 @@ request_route {
 }
 ```
 
+## Record-Route Mode
+
+Add `--record-route` to make the proxy insert itself into the dialog path.
+In-dialog requests (ACK, BYE) will then traverse the proxy via Route headers.
+
+```bash
+python3 labctl.py run 03_proxy_stateful --record-route
+```
+
+### What Changes
+
+| Without `--record-route` | With `--record-route` |
+|--------------------------|----------------------|
+| Kamailio uses `kamailio.cfg` (bare `t_relay()`) | Kamailio uses `kamailio_rr.cfg` (`record_route()` + `t_relay()`) |
+| No Record-Route headers on INVITE | Record-Route header added by proxy |
+| ACK/BYE go directly UAC ↔ UAS | ACK/BYE go through proxy via Route headers |
+| 100 Trying still present | 100 Trying still present (TM module) |
+
+### What to Look for in the PCAP
+
+```bash
+# Record-Route header on the INVITE
+tshark -r captures/03_proxy_stateful.pcap -Y "sip.Method==INVITE" -T fields -e sip.Record-Route
+
+# Route header on ACK and BYE
+tshark -r captures/03_proxy_stateful.pcap -Y "sip.Method==ACK || sip.Method==BYE" -T fields -e sip.Route
+```
+
+### Comparing PCAPs
+
+```bash
+python3 labctl.py run 03_proxy_stateful --pcap s03_no_rr.pcap
+python3 labctl.py run 03_proxy_stateful --pcap s03_rr.pcap --record-route
+
+# Diff: Route headers present only in s03_rr.pcap
+tshark -r captures/s03_no_rr.pcap -Y "sip.Route" | wc -l   # should be 0
+tshark -r captures/s03_rr.pcap -Y "sip.Route" | wc -l       # should be > 0
+```
+
 ## Exercises
 
 1. Compare this pcap with scenario 02: which packet is present here but absent there?
 2. Who generates the 100 Trying — the proxy or the UAS? How can you tell from the IP addresses?
 3. What happens if the UAS takes 10 seconds to respond? Why is 100 Trying important?
 4. Does the 180 Ringing arrive before or after the 200 OK? Compare with scenario 02.
+5. Run with `--record-route`: does 100 Trying still appear? Does the proxy now also see ACK/BYE?
+6. With Record-Route, how many more packets flow through the proxy compared to without?

@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="ISO-8859-1" ?>
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 <!--
-  UAS scenario that copies Record-Route headers into responses (scenario 05).
+  Unified UAS scenario for all proxy scenarios (02-04).
 
-  The built-in SIPp -sn uas does NOT include Record-Route in its 200 OK.
-  Per RFC 3261, the UAS MUST copy Record-Route headers from the INVITE into
-  provisional and final responses. This custom UAS does that using
-  [last_Record-Route:], so the UAC can build its route set correctly.
+  Works with and without Record-Route:
+  - [last_Record-Route:] copies Record-Route headers from the INVITE into
+    180 and 200 OK responses. If no Record-Route headers are present,
+    this keyword expands to nothing (backward compatible).
+  - Per RFC 3261, the UAS MUST copy Record-Route from INVITE into responses
+    so the UAC can build its route set correctly.
+  - The built-in SIPp -sn uas does NOT do this, so we always use this custom
+    UAS for proxy scenarios.
 -->
-<scenario name="UAS with Record-Route passthrough">
+<scenario name="UAS for proxy scenarios">
 
   <recv request="INVITE" crlf="true"/>
 
